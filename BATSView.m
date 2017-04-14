@@ -153,10 +153,8 @@ classdef BATSView < handle
                     
                     la = true(size(coord0,1),1);
                     la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
- 
-                    sum(la)
-                    
-                    D = interp1(coord0(la,1),var(la),xs,'nearest');
+                     
+                    D = interp1(coord0(la,1),var(la),xs,'linear','extrap');
                     X = xs;
                     Y = [];
                     Z = [];
@@ -174,12 +172,6 @@ classdef BATSView < handle
                     la = true(size(coord0,1),1);
                     la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
                     la = la & coord0(:,2)>=bndbox(2,1) & coord0(:,2)<=bndbox(2,2);
-                    
-%                     [min(coord0(:,1)), max(coord0(:,1))]
-%                     [min(coord0(:,2)), max(coord0(:,2))]
-                    
-%                     bndbox
-%                     sum(la)
                     
                     SI = scatteredInterpolant(coord0(la,1:2),var(la),'nearest','nearest');
                     D = SI(X,Y);
@@ -205,6 +197,84 @@ classdef BATSView < handle
                     SI = scatteredInterpolant(coord0(la,1:3),var(la),'nearest');
                     D = SI(X,Y,Z);
                     
+            end
+            
+        end
+        
+        %===============================================================
+        % get_uniform:
+        %   Provided a subdomain and a minimum spacing size, return a 
+        %   uniform node-based representation of the data. Used for
+        %   displaying via pcolor.
+        %
+        %   fileNum: Which loaded file you wish to process.
+        %   varname: Name of the variable you wish to process. 
+        %   bndbox:  3x2 array identifying the region you wish to map to
+        %            the uniform grid. bndbox(:,1) is the lower-left corner
+        %            of the box, while bndbox(:,2) is the upper-right
+        %            corner.
+        %   minsizes: 3x1 array specifying the spacing of the uniform grid
+        %            in each direction.
+        %===============================================================
+        function scatint = get_scatteredInterpolant(this,fileNum,varname,bndbox,minsizes)
+            if(fileNum > this.nFiles)
+                error('[get_var] File number exceeds number of loaded files\n');
+            end
+            
+            ind = this.fileObjs{fileNum}.vmap(varname);
+            var = this.fileObjs{fileNum}.var(:,ind);
+            
+            coord0 = this.get_coords(fileNum);
+            ndim   = this.fileObjs{fileNum}.ndim;
+            
+            nPts = zeros(3,1);
+            nPts(1) = ceil((bndbox(1,2)-bndbox(1,1))/minsizes(1));
+            if(ndim>1)
+                nPts(2) = ceil((bndbox(2,2)-bndbox(2,1))/minsizes(2));
+            end
+            if(ndim>2)
+                nPts(3) = ceil((bndbox(3,2)-bndbox(3,1))/minsizes(3));
+            end
+            
+            switch(ndim)
+                case(1)
+                    
+                    scatint = [];
+                    
+                case(2)
+                                        
+                    tx = linspace(0,1,nPts(1));
+                    ty = linspace(0,1,nPts(2));
+                    
+                    [TX,TY] = ndgrid(tx,ty);
+                    
+                    X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
+                    Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
+                    
+                    la = true(size(coord0,1),1);
+                    la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
+                    la = la & coord0(:,2)>=bndbox(2,1) & coord0(:,2)<=bndbox(2,2);
+                    
+                    scatint = scatteredInterpolant(coord0(la,1:2),var(la),'linear','nearest');
+                                        
+                case(3)
+                                        
+                    tx = linspace(0,1,nPts(1));
+                    ty = linspace(0,1,nPts(2));
+                    tz = linspace(0,1,nPts(3));
+                    
+                    [TX,TY,TZ] = ndgrid(tx,ty,tz);
+                    
+                    X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
+                    Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
+                    Z = bndbox(3,1) + (bndbox(3,2)-bndbox(3,1))*TZ;
+                    
+                    la = true(size(coord0,1),1);
+                    la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
+                    la = la & coord0(:,2)>=bndbox(2,1) & coord0(:,2)<=bndbox(2,2);
+                    la = la & coord0(:,3)>=bndbox(3,1) & coord0(:,3)<=bndbox(3,2);
+                    
+                    scatint = scatteredInterpolant(coord0(la,1:3),var(la),'nearest');                    
             end
             
         end
