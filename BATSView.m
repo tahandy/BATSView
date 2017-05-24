@@ -216,7 +216,7 @@ classdef BATSView < handle
         %   minsizes: 3x1 array specifying the spacing of the uniform grid
         %            in each direction.
         %===============================================================
-        function scatint = get_scatteredInterpolant(this,fileNum,varname,bndbox,minsizes)
+        function scatint = get_scatteredInterpolant(this,fileNum,varname,bndbox)
             if(fileNum > this.nFiles)
                 error('[get_var] File number exceeds number of loaded files\n');
             end
@@ -227,29 +227,30 @@ classdef BATSView < handle
             coord0 = this.get_coords(fileNum);
             ndim   = this.fileObjs{fileNum}.ndim;
             
-            nPts = zeros(3,1);
-            nPts(1) = ceil((bndbox(1,2)-bndbox(1,1))/minsizes(1));
-            if(ndim>1)
-                nPts(2) = ceil((bndbox(2,2)-bndbox(2,1))/minsizes(2));
-            end
-            if(ndim>2)
-                nPts(3) = ceil((bndbox(3,2)-bndbox(3,1))/minsizes(3));
-            end
-            
+%             nPts = zeros(3,1);
+%             nPts(1) = ceil((bndbox(1,2)-bndbox(1,1))/minsizes(1));
+%             if(ndim>1)
+%                 nPts(2) = ceil((bndbox(2,2)-bndbox(2,1))/minsizes(2));
+%             end
+%             if(ndim>2)
+%                 nPts(3) = ceil((bndbox(3,2)-bndbox(3,1))/minsizes(3));
+%             end
+%             
             switch(ndim)
                 case(1)
                     
-                    scatint = [];
+                    xc      = this.fileObjs{fileNum}.coord(:,1);
+                    scatint = griddedInterpolant(xc,var,'pchip');
                     
                 case(2)
                                         
-                    tx = linspace(0,1,nPts(1));
-                    ty = linspace(0,1,nPts(2));
-                    
-                    [TX,TY] = ndgrid(tx,ty);
-                    
-                    X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
-                    Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
+%                     tx = linspace(0,1,nPts(1));
+%                     ty = linspace(0,1,nPts(2));
+%                     
+%                     [TX,TY] = ndgrid(tx,ty);
+%                     
+%                     X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
+%                     Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
                     
                     la = true(size(coord0,1),1);
                     la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
@@ -259,15 +260,15 @@ classdef BATSView < handle
                                         
                 case(3)
                                         
-                    tx = linspace(0,1,nPts(1));
-                    ty = linspace(0,1,nPts(2));
-                    tz = linspace(0,1,nPts(3));
-                    
-                    [TX,TY,TZ] = ndgrid(tx,ty,tz);
-                    
-                    X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
-                    Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
-                    Z = bndbox(3,1) + (bndbox(3,2)-bndbox(3,1))*TZ;
+%                     tx = linspace(0,1,nPts(1));
+%                     ty = linspace(0,1,nPts(2));
+%                     tz = linspace(0,1,nPts(3));
+%                     
+%                     [TX,TY,TZ] = ndgrid(tx,ty,tz);
+%                     
+%                     X = bndbox(1,1) + (bndbox(1,2)-bndbox(1,1))*TX;
+%                     Y = bndbox(2,1) + (bndbox(2,2)-bndbox(2,1))*TY;
+%                     Z = bndbox(3,1) + (bndbox(3,2)-bndbox(3,1))*TZ;
                     
                     la = true(size(coord0,1),1);
                     la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
@@ -398,7 +399,102 @@ classdef BATSView < handle
             end
             
         end
+        
+        
+        
+        %===============================================================
+        % lineout_exact:
+        %   Extract a lineout for a given variable. Doesn't do anything
+        %   fancy if the line goes outside of the domain, so try to keep it
+        %   inside for intelligible (non-extrapolated) results. 
+        %
+        %   fileNum:  Which loaded file you wish to process.
+        %   varname:  Name of the variable you wish to process. 
+        %   startIn:  3x1 array specifying the beginning point of the
+        %             lineout
+        %   finishIn: 3x1 array specifying the ending point of the lineout
+        %   nPts:     Number of points to use for the lineout. Uniformly
+        %             distributed.
+        %
+        %===============================================================
+        function [XY, data] = lineout_exact(this,fileNum,pt,dir,limits,vars)
+            
+            if(fileNum > this.nFiles)
+                error('[lineout] File number exceeds number of loaded files\n');
+            end
+            
+            xmin = limits(1);
+            xmax = limits(2);
+            y0 = pt(2)
 
+            
+            XYZ   = this.get_coords(1);
+            x     = XYZ(:,dir);
+            dx    = this.get_var(1,'dx');
+            
+            dxmin = min(dx(:));
+            dxmax = max(dx(:));
+            
+%             bb      = [[-1e99,1e99];[-1e99,1e99];[-1e99,1e99]];
+            bb      = [[xmin,xmax];[y0, y0+dxmax];[-1e99,1e99]];
+            scintU  = this.get_scatteredInterpolant(1,'dx',bb);
+
+
+
+            blksz = 8;
+            xCentsNew = [];
+            x0 = xmin;
+                       
+            while(true)
+
+                lvl_test = log2(dxmax/dxmin);
+                foundBlk = false;
+                for L = lvl_test:-1:0
+                    dxloc = dxmin*2^L;
+                    x1 = x0 + blksz*dxloc;
+
+                    xf = linspace(x0,x1,blksz+1);
+                    xc = 0.5*(xf(2:end)+xf(1:end-1));
+                    dxSamp = scintU(xc,y0*ones(size(xc)));
+
+%                     L
+%                     [x0, x1]
+%                     [dxmin*2^L,dxSamp]
+                    
+                    if(all(abs(dxSamp-dxSamp(1))<1.0*dxmin) && abs(dxSamp(1)-dxloc)<1.0e0*dxmin)
+                        xCentsNew = [xCentsNew, xc];
+                        x0 = x1;
+                        foundBlk = true;
+                        break;
+                    end
+                end
+
+                if(~foundBlk)
+                    L
+                    [x0, x1]
+                    [dxmin*2^L,dxSamp]
+                    
+                    error('Unable to find block!');
+                end
+
+                if(abs(x0-xmax)<dxmin)
+                    break;
+                end
+
+            end
+
+            XY = zeros(numel(xCentsNew),2);
+            XY(:,1) = xCentsNew;
+            XY(:,2) = pt(2)*ones(size(xCentsNew));
+            data = zeros(numel(xCentsNew),numel(vars));
+            for i=1:numel(vars)
+                scint = this.get_scatteredInterpolant(1,vars{i},bb);
+                data(:,i) = scint(XY(:,1),XY(:,2));                
+            end
+            
+        end
+        
+        
         %===============================================================
         % read_binary:
         %   Read a single/double precision plot file produced by BATSRUS.
@@ -485,7 +581,6 @@ classdef BATSView < handle
             else
                 vmap = containers.Map(varNames,1:nvar);
             end
-                
             
             nvarout = nvar;
             if(loadVarSubset)
