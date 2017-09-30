@@ -173,7 +173,7 @@ classdef BATSView < handle
                     la = la & coord0(:,1)>=bndbox(1,1) & coord0(:,1)<=bndbox(1,2);
                     la = la & coord0(:,2)>=bndbox(2,1) & coord0(:,2)<=bndbox(2,2);
                     
-                    SI = scatteredInterpolant(coord0(la,1:2),var(la),'nearest','nearest');
+                    SI = scatteredInterpolant(coord0(la,1:2),var(la),'linear','nearest');
                     D = SI(X,Y);
                     Z = [];
                                         
@@ -425,7 +425,7 @@ classdef BATSView < handle
             
             xmin = limits(1);
             xmax = limits(2);
-            y0 = pt(2)
+            y0 = pt(2);
 
             
             XYZ   = this.get_coords(1);
@@ -435,52 +435,52 @@ classdef BATSView < handle
             dxmin = min(dx(:));
             dxmax = max(dx(:));
             
-%             bb      = [[-1e99,1e99];[-1e99,1e99];[-1e99,1e99]];
-            bb      = [[xmin,xmax];[y0, y0+dxmax];[-1e99,1e99]];
-            scintU  = this.get_scatteredInterpolant(1,'dx',bb);
-
-
-
-            blksz = 8;
             xCentsNew = [];
-            x0 = xmin;
-                       
-            while(true)
+            switch(this.fileObjs{1}.ndim)
+                case(1)
+                    xCentsNew = x;
+                case(2)
+            
+                    bb      = [[xmin,xmax];[y0, y0+dxmax];[-1e99,1e99]];
+                    scintU  = this.get_scatteredInterpolant(1,'dx',bb);
 
-                lvl_test = log2(dxmax/dxmin);
-                foundBlk = false;
-                for L = lvl_test:-1:0
-                    dxloc = dxmin*2^L;
-                    x1 = x0 + blksz*dxloc;
+                    blksz = 8;
+                    x0 = xmin;
 
-                    xf = linspace(x0,x1,blksz+1);
-                    xc = 0.5*(xf(2:end)+xf(1:end-1));
-                    dxSamp = scintU(xc,y0*ones(size(xc)));
+                    while(true)
 
-%                     L
-%                     [x0, x1]
-%                     [dxmin*2^L,dxSamp]
-                    
-                    if(all(abs(dxSamp-dxSamp(1))<1.0*dxmin) && abs(dxSamp(1)-dxloc)<1.0e0*dxmin)
-                        xCentsNew = [xCentsNew, xc];
-                        x0 = x1;
-                        foundBlk = true;
-                        break;
+                        lvl_test = log2(dxmax/dxmin);
+                        foundBlk = false;
+                        for L = lvl_test:-1:0
+                            dxloc = dxmin*2^L;
+                            x1 = x0 + blksz*dxloc;
+
+                            xf = linspace(x0,x1,blksz+1);
+                            xc = 0.5*(xf(2:end)+xf(1:end-1));
+                            dxSamp = scintU(xc,y0*ones(size(xc)));
+
+                            if(all(abs(dxSamp-dxSamp(1))<1.0*dxmin) && abs(dxSamp(1)-dxloc)<1.0e0*dxmin)
+                                xCentsNew = [xCentsNew, xc];
+                                x0 = x1;
+                                foundBlk = true;
+                                break;
+                            end
+                        end
+
+                        if(~foundBlk)
+                            L
+                            [x0, x1]
+                            [dxmin*2^L,dxSamp]
+                            error('Unable to find block!');
+                        end
+
+                        if(abs(x0-xmax)<dxmin)
+                            break;
+                        end
+
                     end
-                end
-
-                if(~foundBlk)
-                    L
-                    [x0, x1]
-                    [dxmin*2^L,dxSamp]
-                    
-                    error('Unable to find block!');
-                end
-
-                if(abs(x0-xmax)<dxmin)
-                    break;
-                end
-
+                otherwise
+                    error('3D not supported yet');
             end
 
             XY = zeros(numel(xCentsNew),2);
@@ -488,8 +488,15 @@ classdef BATSView < handle
             XY(:,2) = pt(2)*ones(size(xCentsNew));
             data = zeros(numel(xCentsNew),numel(vars));
             for i=1:numel(vars)
-                scint = this.get_scatteredInterpolant(1,vars{i},bb);
-                data(:,i) = scint(XY(:,1),XY(:,2));                
+                switch(this.fileObjs{1}.ndim)
+                    case(1)
+                        data(:,i) = this.get_var(1,vars{i});
+                    case(2)    
+                        scint = this.get_scatteredInterpolant(1,vars{i},bb);
+                        data(:,i) = scint(XY(:,1),XY(:,2));                
+                    otherwise
+                        error('3D not supported yet');
+                end
             end
             
         end
